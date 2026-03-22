@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "target": "es2020",
+    // "allowJS": true,
+    "lib": [
+        "ESNext",
+        "dom"
+    ],
+    "rootDir": "src",
+    "strict": true,
+    // "noUncheckedIndexedAccess": true,
+    // "noImplicitOverride": true
+  },
+  "include": ["src/**/*"], 
+  "exclude": [ "node_modules", "dist", "disabled"]
+}
