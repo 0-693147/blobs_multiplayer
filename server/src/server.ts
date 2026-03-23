@@ -1,14 +1,24 @@
 import express, { type Request, type Response } from "express";
-import { createServer } from "http";
+import { createServer as createServerHTTP } from "http";
 import { Server } from "socket.io";
 import * as math from 'mathjs';
 import * as uuid from "uuid";
+import { readFileSync, readdirSync } from "fs";
+import { createServer as createServerHTTPS } from "https"
+
 
 const app = express();
+const httpServer = createServerHTTP(app)
 
-const httpServer = createServer(app);
+const privateKey = readFileSync('../server/certificate/self_signed_key.pem', 'utf8');
+const certificate = readFileSync('../server/certificate/self_signed_cert.pem', 'utf8');
+const credentials = { key: privateKey, cert: certificate };
 
-const io = new Server(httpServer, {
+
+
+const httpsServer = createServerHTTPS(credentials, app);
+
+const io = new Server(httpsServer, {
     cors: {
         origin: "http://localhost:5173",
     },
@@ -16,7 +26,27 @@ const io = new Server(httpServer, {
     pingTimeout: 5000
 });
 
-const port = 3000;
+const portHTTPS = 3999;
+const portHTTP = portHTTPS - 1
+
+httpsServer.listen(portHTTPS);
+httpServer.listen(portHTTP);
+
+app.use(express.static('../client/dist/'));
+
+app.use((req, res, next) => {
+    if (req.secure) {
+        return next();
+    }
+    res.redirect('https://' + req.hostname + req.originalUrl);
+})
+
+app.get('/', function(req, res) {
+  res.sendFile('client/dist/index.html', {root: "../"});
+});
+
+console.log("listening on " + String(portHTTPS));
+
 type Vector = [number, number];
 
 type Player = {
@@ -51,9 +81,6 @@ const enemies: { [id: string] : Enemy} = {};
 
 const mapBorders: {x: Vector, y: Vector}= {x: [-5000, 5000], y: [-5000, 5000]};
 
-app.get("/", (req: Request, res: Response) => {
-    res.send("hii");
-});
 
 
 io.on("connection", (socket) => {
@@ -203,14 +230,11 @@ function loopCollisions() {
             const distance = Number(math.distance(projectile.position, enemy.position));
             if (distance < projectile.radius + enemy.radius) {
                 if (enemy.radius > 40) {
-                    console.log("deleted enemy as it divided: " + id)
                     delete enemies[id];
                     let axis = [0, 0] as Vector;
                     if (enemy.velocity[0] && enemy.velocity[1]) axis = unitVector(enemy.velocity);
                     else axis = unitVector(projectile.velocity);
                     const new_radius = enemy.radius / (math.sqrt(2) as number);
-                    console.log("enemy split: ", enemy.radius, enemy)
-                    console.log(new Date(), new_radius);
                     const slide1 = rotateVector(axis, math.pi * 2/3);
                     const slide2 = rotateVector(axis, -math.pi * 2/3);
                     const pos1 = math.add(enemy.position, math.multiply(slide1, new_radius)) as Vector;
@@ -257,9 +281,6 @@ function push(obj1: CollisionObject, obj2: CollisionObject, accelerationCoeffici
 }
 
 function elastic_collision(obj1: CollisionObject, obj2: CollisionObject) {
-    // console.log("elastic collision ")
-    // console.log(obj1)
-    // console.log(obj2)
     const k1 = 2*obj2.radius/(obj1.radius + obj2.radius);
     const k2 = 2*obj1.radius/(obj1.radius + obj2.radius);
 
@@ -280,9 +301,6 @@ function elastic_collision(obj1: CollisionObject, obj2: CollisionObject) {
     // obj1.collisionImmunityTime = new Date().getTime() + 200;
     // releaseParticles(obj1, obj2);
 
-    // console.log("elastic collision end")
-    // console.log(obj1)
-    // console.log(obj2)
 }
 
 
@@ -311,6 +329,4 @@ function rotateVector(vector: Vector, angle: number) {
 }
 
 updateLoop();
-httpServer.listen(port);
-console.log("listening on " + String(port));
 
