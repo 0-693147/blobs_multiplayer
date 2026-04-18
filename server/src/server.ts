@@ -53,6 +53,8 @@ type Player = {
     position: Vector,
     color: string,
     radius: number,
+    velocity: Vector,
+    acceleration: Vector,
 }
 
 type Projectile = {
@@ -94,7 +96,9 @@ io.on("connection", (socket) => {
     const thisPlayer = {
         position: playerSpawn,
         color: color,
-        radius: 15
+        radius: 15,
+        velocity: [0, 0] as Vector,
+        acceleration: [0, 0] as Vector,
     }
 
     players[socket.id] = thisPlayer;
@@ -102,24 +106,23 @@ io.on("connection", (socket) => {
     socket.emit("playerInitialization", thisPlayer );
 
     socket.on("playerMoves", (keys : { [id : string] : {state : boolean}}) => {
-        const jump = 10;
+        const acceleration_scalar = 1;
+        let acceleration = [0, 0];
         
         if (keys["arrowUp"]?.state && keys["arrowRight"]?.state) {
-            thisPlayer.position[1] += jump / Math.sqrt(2)
-            thisPlayer.position[0] += jump / Math.sqrt(2)
+            acceleration = math.multiply([1, 1], acceleration_scalar / Math.sqrt(2)) as Vector
         } else if (keys["arrowRight"]?.state && keys["arrowDown"]?.state) {
-            thisPlayer.position[0] += jump / Math.sqrt(2)
-            thisPlayer.position[1] -= jump / Math.sqrt(2)
+            acceleration = math.multiply([1, -1], acceleration_scalar / Math.sqrt(2)) as Vector
         } else if (keys["arrowDown"]?.state && keys["arrowLeft"]?.state) {
-            thisPlayer.position[1] -= jump / Math.sqrt(2)
-            thisPlayer.position[0] -= jump / Math.sqrt(2)
+            acceleration = math.multiply([-1, -1], acceleration_scalar / Math.sqrt(2)) as Vector
         } else if (keys["arrowLeft"]?.state && keys["arrowUp"]?.state) {
-            thisPlayer.position[0] -= jump / Math.sqrt(2)
-            thisPlayer.position[1] += jump / Math.sqrt(2)
-        } else if (keys["arrowUp"]?.state) thisPlayer.position[1] += jump
-        else if (keys["arrowDown"]?.state) thisPlayer.position[1] -= jump
-        else if (keys["arrowRight"]?.state) thisPlayer.position[0] += jump
-        else if (keys["arrowLeft"]?.state) thisPlayer.position[0] -= jump
+            acceleration = math.multiply([-1, 1], acceleration_scalar / Math.sqrt(2)) as Vector
+        } else if (keys["arrowUp"]?.state) acceleration = math.multiply([0, 1], acceleration_scalar) as Vector
+        else if (keys["arrowDown"]?.state) acceleration = math.multiply([0, -1], acceleration_scalar) as Vector
+        else if (keys["arrowRight"]?.state) acceleration = math.multiply([1, 0], acceleration_scalar) as Vector
+        else if (keys["arrowLeft"]?.state) acceleration = math.multiply([-1, 0], acceleration_scalar) as Vector
+        const thisPlayer = players[socket.id]
+        if (thisPlayer) players[socket.id]!.acceleration = acceleration as Vector
     })
 
     socket.on("playerSendsProjectile", (projectileObject) => {
@@ -160,6 +163,7 @@ function updateLoop() {
         deleteObjects()
     }, 10000)
 
+    spawnRandomEnemies()
     setInterval(() => {
         spawnRandomEnemies()
     }, 10000)
@@ -173,6 +177,20 @@ function calculatePositions() {
     for (const [id, enemy] of Object.entries(enemies)) {
         enemy.position[0] += enemy.velocity[0];
         enemy.position[1] += enemy.velocity[1];
+    }
+
+    for (const [id, player] of Object.entries(players)) {
+        player.velocity = math.add(player.velocity, player.acceleration);
+        const velocity_scalar = math.norm(player.velocity) as number;
+        const max_velocity = 30;
+        if (velocity_scalar > max_velocity) {
+                const unit_velocity = unitVector(player.velocity);
+                player.velocity = math.multiply(unit_velocity, max_velocity) as Vector;
+        }
+        player.position = math.add(player.position, player.velocity);
+        const dumping_coeficcient = -0.1;
+        player.acceleration = math.multiply(player.velocity, dumping_coeficcient) as Vector;
+        console.log(player.acceleration)
     }
 }
 
