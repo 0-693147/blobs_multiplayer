@@ -182,7 +182,7 @@ function calculatePositions() {
     for (const [id, player] of Object.entries(players)) {
         player.velocity = math.add(player.velocity, player.acceleration);
         const velocity_scalar = math.norm(player.velocity) as number;
-        const max_velocity = 30;
+        const max_velocity = 20;
         if (velocity_scalar > max_velocity) {
                 const unit_velocity = unitVector(player.velocity);
                 player.velocity = math.multiply(unit_velocity, max_velocity) as Vector;
@@ -190,7 +190,6 @@ function calculatePositions() {
         player.position = math.add(player.position, player.velocity);
         const dumping_coeficcient = -0.1;
         player.acceleration = math.multiply(player.velocity, dumping_coeficcient) as Vector;
-        console.log(player.acceleration)
     }
 }
 
@@ -203,9 +202,9 @@ function deleteObjects() {
             enemy.position[0] > mapBorders.x[1] ||
             enemy.position[1] < mapBorders.y[0] ||
             enemy.position[1] > mapBorders.y[1]) {
+            console.log(Date(), "deleting enemy (out of borders): ", enemy.position)
             delete enemies[id];
         }
-
     }
     
 }
@@ -213,22 +212,31 @@ function deleteObjects() {
 function spawnRandomEnemies() {
     if (Object.keys(enemies).length < 220) {
         for (let i = 0; i < 20; i += 1) {
-            spawnEnemy({});
+            const {id: enemy_id, enemy} = createEnemy({});
+            const min_player_enemy_spawn_distance = 500;
+            for (const [player_id, player] of Object.entries(players)) {
+                const distance = math.distance(player.position, enemy.position) as number
+                if (distance > min_player_enemy_spawn_distance) {
+                    enemies[enemy_id] = enemy
+                }
+            }
         }
     }
 }
 
-function spawnEnemy({position, radius, color, velocity} : {position?: Vector, radius?: number, color?: string, velocity?: Vector}) {
+function createEnemy({position, radius, color, velocity} : {position?: Vector, radius?: number, color?: string, velocity?: Vector}) {
     const id = uuid.v4();
     const enemy_min = 100;
     const enemy_max = 300;
-    enemies[id] = {
-        position: position ? position : [math.random(mapBorders.x[1],  mapBorders.x[0]), math.random(mapBorders.y[1], mapBorders.y[0])],
+    const enemy = {
+        position: position ? position : [math.random(mapBorders.x[1],  mapBorders.x[0]), math.random(mapBorders.y[1], mapBorders.y[0])] as Vector,
         color : color ? color : `hsl(${Math.random() * 360}, 80%, 50%)`,
-        velocity: velocity ? velocity : [0, 0],
+        velocity: velocity ? velocity : [0, 0] as Vector,
         creationTime: new Date().getTime(),
         radius: radius ? radius : math.random(enemy_min, enemy_max),
     }
+    return {id: id as string, enemy: enemy as Enemy}
+    // enemies[id] = enemy
 }
 
 
@@ -257,8 +265,10 @@ function loopCollisions() {
                     const slide2 = rotateVector(axis, -math.pi * 2/3);
                     const pos1 = math.add(enemy.position, math.multiply(slide1, new_radius)) as Vector;
                     const pos2 = math.add(enemy.position, math.multiply(slide2, new_radius)) as Vector;
-                    spawnEnemy({position: pos1, radius: new_radius, color: enemy.color, velocity: enemy.velocity})
-                    spawnEnemy({position: pos2, radius: new_radius, color: enemy.color, velocity: enemy.velocity})
+                    const {id: id1, enemy: enemy1} = createEnemy({position: pos1, radius: new_radius, color: enemy.color, velocity: enemy.velocity})
+                    enemies[id1] = enemy1;
+                    const {id: id2, enemy: enemy2} = createEnemy({position: pos2, radius: new_radius, color: enemy.color, velocity: enemy.velocity})
+                    enemies[id2] = enemy2;
                 } else {
                     delete(enemies[id])
                 }
