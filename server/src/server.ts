@@ -241,6 +241,14 @@ function createEnemy({position, radius, color, velocity} : {position?: Vector, r
 
 
 function loopCollisions() {
+    for (const player of Object.values(players).reverse()) {
+        for (const enemy of Object.values(enemies).reverse()) {
+            const distance = Number(math.distance(player.position, enemy.position));
+            if (distance < player.radius + enemy.radius) {
+                collision_engine(player, enemy);
+            }
+        }
+    }
     for (const enemy1 of Object.values(enemies).reverse())
         for (const enemy2 of Object.values(enemies).reverse()) {
             const distance = Number(math.distance(enemy1.position, enemy2.position));

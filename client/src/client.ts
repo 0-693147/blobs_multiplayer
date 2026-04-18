@@ -197,6 +197,8 @@ function gameLoop() {
         con.fillRect(0, 0, canvas.width, canvas.height);
 
 
+        // renderCoordinateLines()
+        renderCoordinateDots()
         for (const [id, player] of Object.entries(players)) {
             let {h, s, l}= colorToNumber(player.color)
             let a = 1;
@@ -220,6 +222,82 @@ function gameLoop() {
     }
 }
 
+
+function renderCoordinateLines() {
+    // lines look too jarring because of packet jitter
+    const mark_dist = 500;
+    const position = thisPlayer.pos
+    const margins = {
+        x1: position[0] - screen.width / 2,
+        x2: position[0] + screen.width / 2,
+        y1: position[1] - screen.height/ 2,
+        y2: position[1] + screen.height/ 2,
+    }
+    const leftMost = math.floor(margins.x1 / mark_dist) * mark_dist
+    const rightMost = math.ceil(margins.x2 / mark_dist) * mark_dist
+    for (let x = leftMost; x < rightMost; x += mark_dist) {
+        const pos1 = [x, margins.y1] as Vector
+        const pos2 = [x, margins.y2] as Vector
+        const pos1_local = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: pos1})
+        const pos2_local = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: pos2})
+        // drawLine(pos1, pos2)
+        drawLine(pos1_local, pos2_local)
+    }
+    const upperMost = math.floor(margins.y1 / mark_dist) * mark_dist
+    const downMost = math.ceil(margins.y2 / mark_dist) * mark_dist
+    for (let y = upperMost; y < downMost; y += mark_dist) {
+        const pos1 = [margins.x1, y] as Vector
+        const pos2 = [margins.x2, y] as Vector
+        const pos1_local = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: pos1})
+        const pos2_local = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: pos2})
+        drawLine(pos1_local, pos2_local)
+    }
+}
+
+function renderCoordinateDots() {
+    const mark_dist = 500;
+    const position = thisPlayer.pos
+    const margins = {
+        x1: position[0] - screen.width / 2,
+        x2: position[0] + screen.width / 2,
+        y1: position[1] - screen.height/ 2,
+        y2: position[1] + screen.height/ 2,
+    }
+    const leftMost = math.floor(margins.x1 / mark_dist) * mark_dist
+    const rightMost = math.ceil(margins.x2 / mark_dist) * mark_dist
+    const upperMost = math.floor(margins.y1 / mark_dist) * mark_dist
+    const downMost = math.ceil(margins.y2 / mark_dist) * mark_dist
+    for (let x = leftMost; x < rightMost; x += mark_dist) {
+        for (let y = upperMost; y < downMost; y += mark_dist) {
+            const local_pos = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: [x, y]})
+            con.fillStyle = "hsl(0, 0%, 50%)"
+            con.fillRect(...local_pos, 1, 1)
+        }
+    }
+}
+
+
+function drawLine(pos1: Vector, pos2: Vector) {
+    console.log("line")
+    con.beginPath();
+    con.moveTo(...pos1);
+    con.lineTo(...pos2);
+    con.lineWidth = 1;
+    con.strokeStyle = "hsl(0, 0%, 50%)";
+    con.stroke();
+}
+
+
+function drawBlob(position: [number, number], radius: number, color: string) {
+    const relativePosition = [
+        canvas.width/2 - thisPlayerPosition[0] + position[0],
+        canvas.height/2 + thisPlayerPosition[1] - position[1]
+    ]
+    con.beginPath();
+    con.arc(relativePosition[0], relativePosition[1], radius, 0, Math.PI*2, true);
+    con.fillStyle = color;
+    con.fill();
+}
 
 function coordinatesGlobalToLocal({playerPosition, globalPosition} : {playerPosition: Vector, globalPosition: Vector}) {
     const localPosition : Vector = [
@@ -253,16 +331,6 @@ function numberToColor({h, s, l, a} : {h: number, s: number, l: number, a?: numb
     }
 }
 
-function drawBlob(position: [number, number], radius: number, color: string) {
-    const relativePosition = [
-        canvas.width/2 - thisPlayerPosition[0] + position[0],
-        canvas.height/2 + thisPlayerPosition[1] - position[1]
-    ]
-    con.beginPath();
-    con.arc(relativePosition[0], relativePosition[1], radius, 0, Math.PI*2, true);
-    con.fillStyle = color;
-    con.fill();
-}
 
 
 
@@ -295,7 +363,6 @@ window.addEventListener("keydown", (event) => {
 })
 
 window.addEventListener("keyup", (event) => {
-    console.log(event.code)
     switch(event.code) {
         case "ArrowDown":
         case "KeyS":
