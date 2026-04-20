@@ -102,9 +102,12 @@ export class MovingBlob extends Blob {
 }
 
 export class Player extends MovingBlob {
-    constructor({position, radius, color, velocity} : {position: Vector, radius: number, color: string, velocity?: Vector}) {
+    score: number;
+
+    constructor({position, radius, color, velocity, score} : {position: Vector, radius: number, color: string, velocity?: Vector, score: number}) {
         if (! velocity) velocity = [0, 0];
         super(position, radius, color, velocity);
+        this.score = score;
     }
 }
 

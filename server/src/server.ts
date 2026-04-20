@@ -55,6 +55,7 @@ type Player = {
     radius: number,
     velocity: Vector,
     acceleration: Vector,
+    score: number,
 }
 
 type Projectile = {
@@ -99,6 +100,7 @@ io.on("connection", (socket) => {
         radius: 15,
         velocity: [0, 0] as Vector,
         acceleration: [0, 0] as Vector,
+        score: 0,
     }
 
     players[socket.id] = thisPlayer;
@@ -277,6 +279,8 @@ function loopCollisions() {
                     enemies[id1] = enemy1;
                     const {id: id2, enemy: enemy2} = createEnemy({position: pos2, radius: new_radius, color: enemy.color, velocity: enemy.velocity})
                     enemies[id2] = enemy2;
+                    const player = players[projectile.player]
+                    if (player) player.score += 1
                 } else {
                     delete(enemies[id])
                 }

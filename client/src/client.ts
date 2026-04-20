@@ -7,6 +7,7 @@ import type {Vector, CollisionObject} from "./classes/classes"
 import { io } from "socket.io-client"
 
 
+let scores : {id: string; score: number}[] = [];
 
 const socket = io();
 socket.on("connect", () => {
@@ -18,12 +19,18 @@ socket.on("connect", () => {
 
 const canvas = document.querySelector("canvas")!;
 const coordinateElement = document.getElementById("coordinates")!;
+const scoreElement = document.getElementById("score")!
+const leaderboard = document.getElementById("leaderboard")!;
+const leaderboardList = document.createElement("div")
+leaderboardList.id = "leaderboardList"
+leaderboard.appendChild(leaderboardList)
 const con : any = canvas.getContext("2d");
 let points = 0;
 let velocity_reference = 1;
 let trailLength = 5;
 let checkIfObjectsExist = false;
 
+type ScoreType = {id: string | null, score: number | null, element: HTMLDivElement};
 
 var  frame_number: number = 0;
 const gameStateList = {
@@ -79,6 +86,7 @@ let recencyList = [];
 type backendPlayerType = {
     position: [number, number];
     color: string;
+    score: number;
 }
 
 
@@ -100,21 +108,22 @@ socket.on("objectPositionUpdate", (objects) => {
 
     if (socket.id) {
         thisPlayerPosition = backendPlayers[socket.id].position;
-        coordinateElement.textContent = String(math.round(thisPlayerPosition[0])) + " " + String(math.round(thisPlayerPosition[1]))
+        coordinateElement.textContent = String(math.round(thisPlayerPosition[0])) + " " + String(math.round(thisPlayerPosition[1]));
+        scoreElement.textContent = "Score: " + String(backendPlayers[socket.id].score);
     }
     for (const [id, player] of Object.entries(players)) {
         if (!backendPlayers[id]) {
             delete players[id]
-            console.log("deleting inactive player: " + socket.id)
         }
     }
 
     for (const [id, backendPlayer] of Object.entries(backendPlayers)) {
-        const { position, color } = backendPlayer;
-        if (!players[id]) players[id] = new Player({position: position, radius: 15, color: color});
+        const { position, color, score } = backendPlayer;
+        if (!players[id]) players[id] = new Player({position: position, radius: 15, color: color, score: score});
         const player = players[id];
 
         player.pos = position;
+        player.score = score
         if (player.trail[0][0] != position[0] || player.trail[0][1] != position[1]) {
             player.trail.unshift(position);
         } else {
@@ -146,7 +155,6 @@ socket.on("objectPositionUpdate", (objects) => {
         const {position, color, velocity, radius} = enemy;
 
         if (!enemies[id]) {
-            console.log(backendEnemies)
             enemies[id] = new Enemy({color: color, velocity: velocity, pos: position, radius: radius});
             
         }
@@ -168,9 +176,9 @@ socket.on("deletePlayer", (playerID: string) => {
 
 function createPlayer(thisPlayerBackend: backendPlayerType) {
     if (socket.id) {
-    const { position, color } = thisPlayerBackend;
+    const { position, color, score } = thisPlayerBackend;
     thisPlayerPosition = position;
-    thisPlayer = new Player({position: position, radius: 15, color: color});
+    thisPlayer = new Player({position: position, radius: 15, color: color, score: score});
     const id : string = socket.id;
     players[socket.id] = thisPlayer;
     }
@@ -191,41 +199,54 @@ function gameLoop() {
     }, 1000/fps)
     setInterval(() => {checkIfObjectsExist = true}, 5000)
 
-    function drawObjects() {
-        frame_number+= 1;
-        con.fillStyle = "rgba(0, 0, 0, 1)"
-        con.fillRect(0, 0, canvas.width, canvas.height);
-
-
-        // renderCoordinateLines()
-        renderCoordinateDots()
-        for (const [id, player] of Object.entries(players)) {
-            let {h, s, l}= colorToNumber(player.color)
-            let a = 1;
-            a *= 0.6 ** (trailLength - 1)
-
-            player.trail.reverse().forEach((position) => {
-                const newcolor = numberToColor({h: h, s: s, l: l, a: a})
-                drawBlob(position, player.radius, newcolor);
-            })
-            drawBlob(player.pos, player.radius, player.color);
-        }
-
-        for (const [id, projectile] of Object.entries(projectiles)) {
-            drawBlob(projectile.pos, projectile.radius, projectile.color)
-        }
-
-        for (const [id, enemy] of Object.entries(enemies)) {
-            drawBlob(enemy.pos, enemy.radius, enemy.color)
-        }
-
-    }
+    const leader_scores = createLeaderboard()
+    setInterval(() => {updateLeaderboard()}, 3000)
 }
+
+function drawObjects() {
+    frame_number+= 1;
+    con.fillStyle = "rgba(0, 0, 0, 1)"
+    con.fillRect(0, 0, canvas.width, canvas.height);
+
+
+    // renderCoordinateLines()
+    renderCoordinateDots()
+    for (const [id, player] of Object.entries(players)) {
+        let {h, s, l}= colorToNumber(player.color)
+        let a = 1;
+        a *= 0.6 ** (trailLength - 1)
+
+        player.trail.reverse().forEach((position) => {
+            const newcolor = numberToColor({h: h, s: s, l: l, a: a})
+            drawBlob(position, player.radius, newcolor);
+        })
+        drawBlob(player.pos, player.radius, player.color);
+        con.font = "10pt Arial white";
+        const nickname_position = coordinatesGlobalToLocal({
+            playerPosition: thisPlayer.pos,
+            globalPosition: [player.pos[0], player.pos[1] + 30] as Vector
+            })
+        const nickname = String(id.slice(10)) 
+        con.fillText(nickname, ...nickname_position)
+        con.textAlign = "center"
+    }
+
+    for (const [id, projectile] of Object.entries(projectiles)) {
+        drawBlob(projectile.pos, projectile.radius, projectile.color)
+    }
+
+    for (const [id, enemy] of Object.entries(enemies)) {
+        drawBlob(enemy.pos, enemy.radius, enemy.color)
+    }
+
+}
+
 
 
 function renderCoordinateLines() {
     // lines look too jarring because of packet jitter
     const mark_dist = 500;
+    if (!thisPlayer) return;
     const position = thisPlayer.pos
     const margins = {
         x1: position[0] - screen.width / 2,
@@ -255,6 +276,7 @@ function renderCoordinateLines() {
 }
 
 function renderCoordinateDots() {
+    if (!thisPlayer) return;
     const mark_dist = 500;
     const position = thisPlayer.pos
     const margins = {
@@ -271,7 +293,7 @@ function renderCoordinateDots() {
         for (let y = upperMost; y < downMost; y += mark_dist) {
             const local_pos = coordinatesGlobalToLocal({playerPosition: thisPlayer.pos, globalPosition: [x, y]})
             con.fillStyle = "hsl(0, 0%, 50%)"
-            con.fillRect(...local_pos, 1, 1)
+            con.fillRect(...local_pos, 3, 3)
         }
     }
 }
@@ -331,6 +353,33 @@ function numberToColor({h, s, l, a} : {h: number, s: number, l: number, a?: numb
     }
 }
 
+function createLeaderboard() {
+    for (let i = 0; i < 10; i++) {
+        const leaderboardEntity = document.createElement("div");
+        leaderboardEntity.classList = "leaderboardItem";
+        leaderboardEntity.id = "leaderboardItem" + String(i);
+        leaderboardList.appendChild(leaderboardEntity);
+    }
+}
+
+function updateLeaderboard() {
+    scores = []
+    for (const [id, player] of Object.entries(players)) {
+        scores.push({id: id, score: player.score})
+    }
+    scores.sort((a, b) => {return b.score - a.score})
+    console.log(scores)
+    for (let i = 0; i < 10; i++) {
+        const leaderboardItem = document.getElementById("leaderboardItem" + String(i))
+        if (leaderboardItem) {
+            if (i < scores.length) {
+                leaderboardItem.innerText = `${i + 1}. ${scores[i].id.slice(10)}: ${String(scores[i].score)}`
+            } else {
+                leaderboardItem.innerText = ""
+            }
+        }
+    }
+}
 
 
 
@@ -387,19 +436,12 @@ window.addEventListener("keyup", (event) => {
 window.addEventListener("click", (event) => {
     const x = event.x - canvas.width/2
     const y = -(event.y - canvas.height/2)
-    console.log(event.x)
-    console.log(event.y)
     const angle = math.atan2(y, x)
-    console.log(angle)
     sendProjectile = {angle: angle}
 })
 
 
 
-const scoreElement = document.getElementById("score")!
-function updateScore() {
-    scoreElement.innerText = "Score: " + points;
-}
 
 window.addEventListener("resize", () => {
     canvas.height = window.innerHeight;
